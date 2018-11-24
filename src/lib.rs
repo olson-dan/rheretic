@@ -1,48 +1,142 @@
+#[macro_use]
+extern crate failure;
+extern crate byteorder;
+extern crate image;
 
-use std::collections::HashMap;
+use byteorder::{LittleEndian, ReadBytesExt};
+use failure::Error;
+use image::{Rgb, RgbaImage};
+use std::io::prelude::*;
+use std::io::SeekFrom;
+use std::str;
 
-use std::str::from_utf8;
+pub struct Lump {
+    pub name: String,
+    pub data: Vec<u8>,
+    pub pos: u64,
+    pub len: usize,
+}
 
-macro_rules! le32 {
-    ($slice:expr, $offset:expr) => (
-        {
-            let a = $slice[$offset + 0] as u32;
-            let b = $slice[$offset + 1] as u32;
-            let c = $slice[$offset + 2] as u32;
-            let d = $slice[$offset + 3] as u32;
-            ((d << 24) | (c << 16) | (b << 8) | a) as usize
+pub struct Wad {
+    pub lumps: Vec<Lump>,
+}
+
+impl Wad {
+    pub fn from_reader<T>(mut data: T) -> Result<Wad, Error>
+    where
+        T: Read + Seek,
+    {
+        let mut tag = [0u8; 4];
+        data.read_exact(&mut tag)?;
+        let tag = str::from_utf8(&tag)?;
+        if tag != "IWAD" && tag != "PWAD" {
+            bail!(format!("Invalid WAD magic"));
         }
-    );
-}
+        let num_lumps = data.read_u32::<LittleEndian>()? as usize;
+        let offset = data.read_u32::<LittleEndian>()? as u64;
 
-pub struct Wad<'a> {
-    pub lumps: HashMap<String, &'a [u8]>,
-}
+        data.seek(SeekFrom::Start(offset))?;
 
-impl<'a> Wad<'a> {
-    pub fn from_slice(data: &'a [u8]) -> Wad {
-        let mut lumps : HashMap<String, &'a [u8]> = HashMap::new();
+        let mut lumps: Vec<Lump> = Vec::with_capacity(num_lumps);
+        for _ in 0..num_lumps {
+            let pos = data.read_u32::<LittleEndian>()? as u64;
+            let len = data.read_u32::<LittleEndian>()? as usize;
+            let mut name = [0u8; 8];
+            data.read_exact(&mut name)?;
+            let name = str::from_utf8(&name)?.trim_right_matches('\0').to_string();
+            lumps.push(Lump {
+                name,
+                pos,
+                len,
+                data: Vec::new(),
+            });
+        }
+        for lump in lumps.iter_mut() {
+            data.seek(SeekFrom::Start(lump.pos))?;
+            let mut contents = vec![0u8; lump.len];
+            data.read_exact(&mut contents)?;
+            lump.data = contents;
+        }
 
-        let tag = from_utf8(&data[..4]).expect("couldn't decode IWAD tag");
-        if tag == "IWAD" || tag == "PWAD" {
-            let num_lumps = le32!(data, 4);
-            let mut offset = le32!(data, 8);
-            for _ in 0..num_lumps {
-                let pos = le32!(data, offset + 0);
-                let length = le32!(data, offset + 4);
-                let name = String::from(from_utf8(&data[offset + 8..offset+16]).unwrap().trim_right_matches('\0'));
-                lumps.insert(name, &data[pos..pos+length]);
-                offset += 16;
+        Ok(Wad { lumps })
+    }
+
+    pub fn get_num_for_name(&self, name: &str) -> Option<usize> {
+        for (i, lump) in self.lumps.iter().enumerate() {
+            if lump.name == name {
+                return Some(i);
             }
         }
-        Wad { lumps: lumps }
+        None
+    }
+
+    pub fn cache_lump_num(&self, num: usize) -> Option<&[u8]> {
+        if num < self.lumps.len() {
+            return Some(&self.lumps[num].data);
+        }
+        None
+    }
+
+    pub fn cache_lump_name(&self, name: &str) -> Option<&[u8]> {
+        if let Some(lump) = self.lumps.iter().find(|l| l.name == name) {
+            Some(&lump.data)
+        } else {
+            None
+        }
+    }
+
+    pub fn lump(&self, name: &str) -> Option<&Lump> {
+        self.lumps.iter().find(|l| l.name == name)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+pub struct Vid<'a> {
+    wad: &'a Wad,
+    fb: &'a mut RgbaImage,
+    palette: Option<Vec<Rgb<u8>>>,
+}
+
+impl<'a> Vid<'a> {
+    pub fn new(wad: &'a Wad, fb: &'a mut RgbaImage) -> Vid<'a> {
+        Vid {
+            wad,
+            fb,
+            palette: None,
+        }
+    }
+
+    fn blit_raw(&mut self, data: &[u8], w: u32, h: u32) {
+        let palette = self.palette.as_ref().unwrap();
+        for (x, y, dest) in self.fb.enumerate_pixels_mut() {
+            if y >= h || x >= w {
+                continue;
+            }
+            let coord = (y * w + x) as usize;
+            let pixel = palette[data[coord] as usize];
+            dest[0] = pixel[0];
+            dest[1] = pixel[1];
+            dest[2] = pixel[2];
+            dest[3] = 255;
+        }
+    }
+    pub fn draw_raw_screen(&mut self, lump: &str) {
+        let lump = self
+            .wad
+            .cache_lump_name(lump)
+            .expect(&format!("Couldn't find lump {}", lump));
+        self.blit_raw(lump, 320, 200);
+    }
+
+    pub fn set_palette(&mut self, lump: &str) {
+        let lump = self
+            .wad
+            .cache_lump_name(lump)
+            .expect(&format!("Couldn't find lump {}", lump));
+        self.palette = Some(
+            lump.chunks(3)
+                .map(|x| Rgb {
+                    data: [x[0], x[1], x[2]],
+                }).collect(),
+        )
     }
 }

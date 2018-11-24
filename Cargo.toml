@@ -4,3 +4,9 @@ version = "0.1.0"
 authors = ["olson-dan <olson-dan@users.noreply.github.com>"]
 
 [dependencies]
+failure = "0.1.2"
+piston = "0.39.0"
+piston_window = "0.85.0"
+piston2d-opengl_graphics = "0.57.0"
+image = "0.20.1"
+byteorder = "1.2.7"
