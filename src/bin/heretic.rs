@@ -19,6 +19,7 @@ use rheretic::{Vid, Wad};
 fn render(vid: &mut Vid) {
     vid.set_palette("PLAYPAL");
     vid.draw_raw_screen("TITLE");
+    vid.draw_patch(4, 160, "ADVISOR");
 }
 
 fn main() -> Result<(), Error> {
@@ -28,16 +29,12 @@ fn main() -> Result<(), Error> {
         .expect("Failed to create window");
     let mut gl = GlGraphics::new(OpenGL::V3_2);
 
-    let file = BufReader::new(File::open("heretic1.wad")?);
+    let file = BufReader::new(File::open("heretic.wad")?);
     let wad = Wad::from_reader(file)?;
 
     let mut fb = RgbaImage::from_raw(320, 200, vec![0u8; 320 * 200 * 4]).unwrap();
     let mut fb_tex = Texture::from_image(&fb, &TextureSettings::new());
 
-    let x = wad.cache_lump_name("PLAYPAL").unwrap();
-    println!("{:?}", &x[..48]);
-    let x = wad.lump("TITLE").unwrap();
-    println!("{} {:x} {:x} {:?}", x.name, x.pos, x.len, &x.data[..320]);
     while let Some(e) = window.next() {
         if let Some(ref args) = e.render_args() {
             render(&mut Vid::new(&wad, &mut fb));

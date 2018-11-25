@@ -5,7 +5,7 @@ extern crate image;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use failure::Error;
-use image::{Rgb, RgbaImage};
+use image::{Rgb, Rgba, RgbaImage};
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::str;
@@ -78,15 +78,11 @@ impl Wad {
     }
 
     pub fn cache_lump_name(&self, name: &str) -> Option<&[u8]> {
-        if let Some(lump) = self.lumps.iter().find(|l| l.name == name) {
+        if let Some(lump) = self.lumps.iter().rev().find(|l| l.name == name) {
             Some(&lump.data)
         } else {
             None
         }
-    }
-
-    pub fn lump(&self, name: &str) -> Option<&Lump> {
-        self.lumps.iter().find(|l| l.name == name)
     }
 }
 
@@ -119,12 +115,62 @@ impl<'a> Vid<'a> {
             dest[3] = 255;
         }
     }
+
+    fn blit_column(&mut self, data: &[u8], x: u32, y: u32) {
+        let palette = self.palette.as_ref().unwrap();
+        for (i, p) in data.iter().enumerate() {
+            let pixel = palette[*p as usize];
+            self.fb[(x, y + i as u32)] = Rgba {
+                data: [pixel[0], pixel[1], pixel[2], 255],
+            };
+        }
+    }
+
+    fn blit_patch(&mut self, mut data: &[u8], x: u32, y: u32) {
+        let img = &data[..];
+
+        let w = data.read_u16::<LittleEndian>().unwrap() as usize;
+        let _h = data.read_u16::<LittleEndian>().unwrap();
+        let left = data.read_u16::<LittleEndian>().unwrap() as u32;
+        let top = data.read_u16::<LittleEndian>().unwrap() as u32;
+
+        let x = x - left;
+        let y = y - top;
+
+        for x_ofs in 0..w {
+            let mut col_ofs = &data[4 * x_ofs..];
+            let mut col_ofs = col_ofs.read_u32::<LittleEndian>().unwrap() as usize;
+
+            let dest_x = x + x_ofs as u32;
+            loop {
+                let topdelta = img[col_ofs] as u32;
+                if topdelta == 255 {
+                    break;
+                }
+                let length = img[col_ofs + 1] as usize;;
+                let source0 = col_ofs + 3;
+                let source1 = source0 + length;
+                let dest_y = topdelta + y;
+                self.blit_column(&img[source0..source1], dest_x, dest_y);
+                col_ofs += length + 4;
+            }
+        }
+    }
+
     pub fn draw_raw_screen(&mut self, lump: &str) {
         let lump = self
             .wad
             .cache_lump_name(lump)
             .expect(&format!("Couldn't find lump {}", lump));
         self.blit_raw(lump, 320, 200);
+    }
+
+    pub fn draw_patch(&mut self, x: u32, y: u32, lump: &str) {
+        let lump = self
+            .wad
+            .cache_lump_name(lump)
+            .expect(&format!("Couldn't find lump {}", lump));
+        self.blit_patch(lump, x, y);
     }
 
     pub fn set_palette(&mut self, lump: &str) {
