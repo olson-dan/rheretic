@@ -10,6 +10,9 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::str;
 
+pub const SCREEN_WIDTH: u32 = 320;
+pub const SCREEN_HEIGHT: u32 = 200;
+
 pub struct Lump {
     pub name: String,
     pub data: Vec<u8>,
@@ -43,7 +46,7 @@ impl Wad {
             let len = data.read_u32::<LittleEndian>()? as usize;
             let mut name = [0u8; 8];
             data.read_exact(&mut name)?;
-            let name = str::from_utf8(&name)?.trim_right_matches('\0').to_string();
+            let name = str::from_utf8(&name)?.trim_end_matches('\0').to_string();
             lumps.push(Lump {
                 name,
                 pos,
@@ -129,15 +132,19 @@ impl<'a> Vid<'a> {
     fn blit_patch(&mut self, mut data: &[u8], x: u32, y: u32) {
         let img = &data[..];
 
-        let w = data.read_u16::<LittleEndian>().unwrap() as usize;
-        let _h = data.read_u16::<LittleEndian>().unwrap();
+        let w = data.read_u16::<LittleEndian>().unwrap() as u32;
+        let h = data.read_u16::<LittleEndian>().unwrap() as u32;
         let left = data.read_u16::<LittleEndian>().unwrap() as u32;
         let top = data.read_u16::<LittleEndian>().unwrap() as u32;
 
         let x = x - left;
         let y = y - top;
 
-        for x_ofs in 0..w {
+        if (x + w) > SCREEN_WIDTH || (y + h) > SCREEN_HEIGHT {
+            panic!("Bad V_DrawPatch");
+        }
+
+        for x_ofs in 0..(w as usize) {
             let mut col_ofs = &data[4 * x_ofs..];
             let mut col_ofs = col_ofs.read_u32::<LittleEndian>().unwrap() as usize;
 

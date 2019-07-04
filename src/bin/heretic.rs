@@ -23,22 +23,28 @@ fn render(vid: &mut Vid) {
 }
 
 fn main() -> Result<(), Error> {
-    let mut window: PistonWindow = WindowSettings::new("Heretic", [640, 400])
-        .exit_on_esc(true)
-        .build()
-        .expect("Failed to create window");
+    let mut window: PistonWindow = WindowSettings::new(
+        "Heretic",
+        [rheretic::SCREEN_WIDTH * 2, rheretic::SCREEN_HEIGHT * 2],
+    ).exit_on_esc(true)
+    .build()
+    .expect("Failed to create window");
     let mut gl = GlGraphics::new(OpenGL::V3_2);
 
     let file = BufReader::new(File::open("heretic.wad")?);
     let wad = Wad::from_reader(file)?;
 
-    let mut fb = RgbaImage::from_raw(320, 200, vec![0u8; 320 * 200 * 4]).unwrap();
+    let mut fb = RgbaImage::from_raw(
+        rheretic::SCREEN_WIDTH,
+        rheretic::SCREEN_HEIGHT,
+        vec![0u8; (rheretic::SCREEN_WIDTH * rheretic::SCREEN_HEIGHT) as usize * 4],
+    ).unwrap();
     let mut fb_tex = Texture::from_image(&fb, &TextureSettings::new());
 
     while let Some(e) = window.next() {
         if let Some(ref args) = e.render_args() {
             render(&mut Vid::new(&wad, &mut fb));
-            let ref c = Context::new_abs(args.width as f64, args.height as f64);
+            let ref c = Context::new_abs(args.draw_size[0] as f64, args.draw_size[1] as f64);
             fb_tex.update(&fb);
             gl.draw(args.viewport(), |_, gl| {
                 Image::new().draw(
