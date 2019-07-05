@@ -10,20 +10,11 @@ use piston_window::{
 };
 
 use failure::Error;
-
-use engine::{Vid, Wad};
-
+use engine::Wad;
 use specs::prelude::*;
 use specs_derive::Component;
 
-#[derive(PartialEq)]
-enum Menu {
-    None,
-    Main,
-}
-
-#[derive(Component)]
-struct MenuIdent(Menu);
+mod menu;
 
 #[derive(Component)]
 struct Background {
@@ -37,36 +28,6 @@ struct Sprite {
     y: u32,
 }
 
-struct RenderMenus;
-
-impl<'a> System<'a> for RenderMenus {
-    type SystemData = (
-        ReadExpect<'a, Wad>,
-        WriteExpect<'a, RgbaImage>,
-        ReadExpect<'a, Menu>,
-        ReadStorage<'a, MenuIdent>,
-        ReadStorage<'a, Background>,
-        ReadStorage<'a, Sprite>,
-    );
-
-    fn run(&mut self, data: Self::SystemData) {
-        let (wad, mut fb, menu, idents, backgrounds, sprites) = data;
-        let mut vid = Vid::new(&wad, &mut fb);
-        let menu: &Menu = &menu;
-        vid.set_palette("PLAYPAL");
-        for (id, background) in (&idents, &backgrounds).join() {
-            if id.0 == *menu {
-                vid.draw_raw_screen(background.patch);
-            }
-        }
-        for (id, s) in (&idents, &sprites).join() {
-            if id.0 == *menu {
-                vid.draw_patch(s.x, s.y, s.patch);
-            }
-        }
-    }
-}
-
 fn main() -> Result<(), Error> {
     let mut window: PistonWindow = WindowSettings::new(
         "Heretic",
@@ -78,7 +39,7 @@ fn main() -> Result<(), Error> {
     let mut gl = GlGraphics::new(OpenGL::V3_2);
 
     let mut world = World::new();
-    world.register::<MenuIdent>();
+    menu::add_components(&mut world);
     world.register::<Background>();
     world.register::<Sprite>();
 
@@ -92,28 +53,14 @@ fn main() -> Result<(), Error> {
         )
         .unwrap(),
     );
-    world.insert(Menu::Main);
 
-    world
-        .create_entity()
-        .with(MenuIdent(Menu::Main))
-        .with(Background { patch: "TITLE" })
-        .build();
-    world
-        .create_entity()
-        .with(MenuIdent(Menu::Main))
-        .with(Sprite {
-            x: 4,
-            y: 160,
-            patch: "ADVISOR",
-        })
-        .build();
-
-    let mut render_menus = RenderMenus;
+    menu::add_resources(&mut world);
+    menu::add_entities(&mut world);
 
     while let Some(e) = window.next() {
         if let Some(ref args) = e.render_args() {
-            render_menus.run_now(&world);
+
+            menu::render(&world);
 
             // Scale and mirror FB to window.
             let fb: (ReadExpect<RgbaImage>) = world.system_data();
