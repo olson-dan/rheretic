@@ -107,6 +107,8 @@ fn main() -> Result<(), Error> {
         if let Some(ref args) = e.render_args() {
             render_background.run_now(&world);
             render_ui_sprites.run_now(&world);
+
+            // Scale and mirror FB to window.
             let fb: (ReadExpect<RgbaImage>) = world.system_data();
             let ref c = Context::new_abs(args.draw_size[0] as f64, args.draw_size[1] as f64);
             let fb_tex = Texture::from_image(&fb, &TextureSettings::new());

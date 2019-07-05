@@ -165,31 +165,26 @@ impl<'a> Vid<'a> {
     }
 
     pub fn draw_raw_screen(&mut self, lump: &str) {
-        let lump = self
-            .wad
-            .cache_lump_name(lump)
-            .expect(&format!("Couldn't find lump {}", lump));
-        self.blit_raw(lump, 320, 200);
+        if let Some(lump) = self.wad.cache_lump_name(lump) {
+            self.blit_raw(lump, 320, 200);
+        }
     }
 
     pub fn draw_patch(&mut self, x: u32, y: u32, lump: &str) {
-        let lump = self
-            .wad
-            .cache_lump_name(lump)
-            .expect(&format!("Couldn't find lump {}", lump));
-        self.blit_patch(lump, x, y);
+        if let Some(lump) = self.wad.cache_lump_name(lump) {
+            self.blit_patch(lump, x, y);
+        }
     }
 
     pub fn set_palette(&mut self, lump: &str) {
-        let lump = self
-            .wad
-            .cache_lump_name(lump)
-            .expect(&format!("Couldn't find lump {}", lump));
-        self.palette = Some(
-            lump.chunks(3)
-                .map(|x| Rgb {
-                    data: [x[0], x[1], x[2]],
-                }).collect(),
-        )
+        if let Some(lump) = self.wad.cache_lump_name(lump) {
+            self.palette = Some(
+                lump.chunks(3)
+                    .map(|x| Rgb {
+                        data: [x[0], x[1], x[2]],
+                    })
+                    .collect(),
+            )
+        }
     }
 }
