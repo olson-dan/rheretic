@@ -9,17 +9,12 @@ use piston_window::{
     Transformed, UpdateEvent, WindowSettings,
 };
 
-use failure::Error;
 use engine::Wad;
+use failure::Error;
 use specs::prelude::*;
 use specs_derive::Component;
 
 mod menu;
-
-#[derive(Component)]
-struct Background {
-    patch: &'static str,
-}
 
 #[derive(Component)]
 struct Sprite {
@@ -40,7 +35,6 @@ fn main() -> Result<(), Error> {
 
     let mut world = World::new();
     menu::add_components(&mut world);
-    world.register::<Background>();
     world.register::<Sprite>();
 
     let file = BufReader::new(File::open("heretic.wad")?);
@@ -59,7 +53,6 @@ fn main() -> Result<(), Error> {
 
     while let Some(e) = window.next() {
         if let Some(ref args) = e.render_args() {
-
             menu::render(&world);
 
             // Scale and mirror FB to window.

@@ -134,11 +134,11 @@ impl<'a> Vid<'a> {
 
         let w = data.read_u16::<LittleEndian>().unwrap() as u32;
         let h = data.read_u16::<LittleEndian>().unwrap() as u32;
-        let left = data.read_u16::<LittleEndian>().unwrap() as u32;
-        let top = data.read_u16::<LittleEndian>().unwrap() as u32;
+        let left = data.read_i16::<LittleEndian>().unwrap() as i32;
+        let top = data.read_i16::<LittleEndian>().unwrap() as i32;
 
-        let x = x - left;
-        let y = y - top;
+        let x = (x as i32 - left) as u32;
+        let y = (y as i32 - top) as u32;
 
         if (x + w) > SCREEN_WIDTH || (y + h) > SCREEN_HEIGHT {
             panic!("Bad V_DrawPatch");
