@@ -59,13 +59,14 @@ struct MenuTime(u32);
 
 use super::Sprite;
 
+struct TickMenus;
 struct RenderMenus;
 
 fn render_specific_menus(wad: &Wad, vid: &mut Vid, menu: &Menu, time: u32) {
     match *menu {
         Menu::Main => {
             let base = wad.get_num_for_name("M_SKL00").expect("missing M_SKL00");
-            let frame = ((time / 3) % 88) as usize;
+            let frame = ((time / 3) % 18) as usize;
             vid.draw_patch(88, 0, "M_HTIC");
             vid.draw_patch_raw(wad.cache_lump_num(base + (17 - frame)).unwrap(), 40, 10);
             vid.draw_patch_raw(wad.cache_lump_num(base + frame).unwrap(), 232, 10);
@@ -106,6 +107,21 @@ fn text_width(wad: &Wad, font: &str, text: &str) -> u32 {
         }
     }
     w
+}
+
+impl<'a> System<'a> for TickMenus {
+    type SystemData = (ReadExpect<'a, Menu>, WriteExpect<'a, MenuTime>);
+
+    fn run(&mut self, data: Self::SystemData) {
+        let (menu, mut time) = data;
+        let menu: &Menu = &menu;
+        match *menu {
+            Menu::None => {}
+            _ => {
+                time.0 += 1;
+            }
+        }
+    }
 }
 
 impl<'a> System<'a> for RenderMenus {
@@ -340,6 +356,11 @@ pub fn add_entities(world: &mut World) {
         })
         .build();
     */
+}
+
+pub fn tick(world: &World) {
+    let mut tick_menus = TickMenus;
+    tick_menus.run_now(&world);
 }
 
 pub fn render(world: &World) {
