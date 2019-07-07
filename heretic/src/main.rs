@@ -53,8 +53,7 @@ fn main() -> Result<(), Error> {
     menu::add_resources(&mut world);
     menu::add_entities(&mut world);
 
-    let mut game_time = 0.0;
-    let mut last_tick = 0.0;
+    let mut tick_delta = 0.0;
 
     while let Some(e) = window.next() {
         if let Some(ref args) = e.render_args() {
@@ -75,12 +74,10 @@ fn main() -> Result<(), Error> {
         }
 
         if let Some(ref args) = e.update_args() {
-            game_time += args.dt;
-            let mut tick_delta = game_time - last_tick;
+            tick_delta += args.dt;
             while tick_delta > SECONDS_PER_TICK {
                 menu::tick(&world);
                 tick_delta -= SECONDS_PER_TICK;
-                last_tick += SECONDS_PER_TICK;
             }
             world.maintain();
         }
