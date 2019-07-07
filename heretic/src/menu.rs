@@ -151,13 +151,16 @@ impl<'a> System<'a> for RenderMenus {
             return;
         }
 
-        let (x, orig_y) = {
-            if let Some((_, offset)) = (&ids, &offsets).join().next() {
-                (offset.0, offset.1)
-            } else {
-                (0, 0)
+        let mut x = 0;
+        let mut orig_y = 0;
+
+        for (id, offset) in (&ids, &offsets).join() {
+            if id.0 == *menu {
+                x = offset.0;
+                orig_y = offset.1;
+                break;
             }
-        };
+        }
 
         render_specific_menus(&wad, &mut vid, menu, time.0);
 
