@@ -89,6 +89,23 @@ impl Wad {
     }
 }
 
+pub struct Patch {
+    pub w: u32,
+    pub h: u32,
+    pub left: i32,
+    pub top: i32,
+}
+
+impl Patch {
+    pub fn from_lump(mut data: &[u8]) -> Patch {
+        let w = data.read_u16::<LittleEndian>().unwrap() as u32;
+        let h = data.read_u16::<LittleEndian>().unwrap() as u32;
+        let left = data.read_i16::<LittleEndian>().unwrap() as i32;
+        let top = data.read_i16::<LittleEndian>().unwrap() as i32;
+        Patch { w, h, left, top }
+    }
+}
+
 pub struct Vid<'a> {
     wad: &'a Wad,
     fb: &'a mut RgbaImage,
@@ -129,7 +146,7 @@ impl<'a> Vid<'a> {
         }
     }
 
-    fn blit_patch(&mut self, mut data: &[u8], x: u32, y: u32) {
+    pub fn draw_patch_raw(&mut self, mut data: &[u8], x: u32, y: u32) {
         let img = &data[..];
 
         let w = data.read_u16::<LittleEndian>().unwrap() as u32;
@@ -172,7 +189,7 @@ impl<'a> Vid<'a> {
 
     pub fn draw_patch(&mut self, x: u32, y: u32, lump: &str) {
         if let Some(lump) = self.wad.cache_lump_name(lump) {
-            self.blit_patch(lump, x, y);
+            self.draw_patch_raw(lump, x, y);
         }
     }
 

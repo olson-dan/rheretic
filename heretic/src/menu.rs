@@ -1,10 +1,12 @@
+use std::convert::TryFrom;
+
 use ::image::RgbaImage;
 use specs::prelude::*;
 use specs_derive::Component;
 
-use engine::{Vid, Wad};
+use engine::{Patch, Vid, Wad};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 enum Menu {
     None,
     Main,
@@ -23,6 +25,7 @@ struct MenuIdent(Menu);
 #[derive(Component)]
 struct MenuOffset(u32, u32);
 
+#[derive(Clone)]
 enum MenuAction {
     None,
     SetMenu(Menu),
@@ -52,10 +55,58 @@ struct MenuItem {
 }
 
 struct MenuSelection(Option<u32>);
+struct MenuTime(u32);
 
 use super::Sprite;
 
 struct RenderMenus;
+
+fn render_specific_menus(wad: &Wad, vid: &mut Vid, menu: &Menu, time: u32) {
+    match *menu {
+        Menu::Main => {
+            let base = wad.get_num_for_name("M_SKL00").expect("missing M_SKL00");
+            let frame = ((time / 3) % 88) as usize;
+            vid.draw_patch(88, 0, "M_HTIC");
+            vid.draw_patch_raw(wad.cache_lump_num(base + (17 - frame)).unwrap(), 40, 10);
+            vid.draw_patch_raw(wad.cache_lump_num(base + frame).unwrap(), 232, 10);
+        }
+        _ => {}
+    }
+}
+
+fn render_text(wad: &Wad, vid: &mut Vid, font: &str, text: &str, x: u32, y: u32) {
+    let mut x = x;
+    let base = wad.get_num_for_name(font).expect("Missing font") + 1;
+    for c in text.chars() {
+        if let Ok(c) = u32::try_from(c) {
+            if c < 33 {
+                x += 5;
+            } else {
+                let lump = wad.cache_lump_num(base + (c as usize) - 33).unwrap();
+                vid.draw_patch_raw(lump, x, y);
+                let patch = Patch::from_lump(lump);
+                x += patch.w - 1;
+            }
+        }
+    }
+}
+
+fn text_width(wad: &Wad, font: &str, text: &str) -> u32 {
+    let mut w = 0;
+    let base = wad.get_num_for_name(font).expect("Missing font") + 1;
+    for c in text.chars() {
+        if let Ok(c) = u32::try_from(c) {
+            if c < 33 {
+                w += 5;
+            } else {
+                let lump = wad.cache_lump_num(base + (c as usize) - 33).unwrap();
+                let patch = Patch::from_lump(lump);
+                w += patch.w - 1;
+            }
+        }
+    }
+    w
+}
 
 impl<'a> System<'a> for RenderMenus {
     type SystemData = (
@@ -64,6 +115,7 @@ impl<'a> System<'a> for RenderMenus {
         ReadExpect<'a, Menu>,
         ReadExpect<'a, MenuBackground>,
         ReadExpect<'a, MenuSelection>,
+        ReadExpect<'a, MenuTime>,
         ReadStorage<'a, MenuIdent>,
         ReadStorage<'a, MenuOffset>,
         ReadStorage<'a, MenuItem>,
@@ -71,7 +123,7 @@ impl<'a> System<'a> for RenderMenus {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (wad, mut fb, menu, bg, sel, ids, offsets, items, sprites) = data;
+        let (wad, mut fb, menu, bg, sel, time, ids, offsets, items, sprites) = data;
         let mut vid = Vid::new(&wad, &mut fb);
         let menu: &Menu = &menu;
         vid.set_palette("PLAYPAL");
@@ -79,7 +131,7 @@ impl<'a> System<'a> for RenderMenus {
             vid.draw_raw_screen(bg.patch);
         }
 
-        let (x, y) = {
+        let (x, orig_y) = {
             if let Some((_, offset)) = (&ids, &offsets).join().next() {
                 (offset.0, offset.1)
             } else {
@@ -87,11 +139,25 @@ impl<'a> System<'a> for RenderMenus {
             }
         };
 
-        match *menu {
-            Menu::Main => {
-                vid.draw_patch(88, 0, "M_HTIC");
+        render_specific_menus(&wad, &mut vid, menu, time.0);
+
+        let mut y = orig_y;
+        for (id, item) in (&ids, &items).join() {
+            if id.0 == *menu {
+                if !item.text.is_empty() {
+                    render_text(&wad, &mut vid, "FONTB_S", item.text, x, y);
+                }
+                y += 20;
             }
-            _ => {}
+        }
+
+        if let Some(item_num) = sel.0 {
+            let y = orig_y + item_num * 20 - 1;
+            if (time.0 & 16) != 0 {
+                vid.draw_patch(x - 28, y, "M_SLCTR1");
+            } else {
+                vid.draw_patch(x - 28, y, "M_SLCTR2");
+            }
         }
 
         for (id, s) in (&ids, &sprites).join() {
@@ -111,7 +177,8 @@ pub fn add_components(world: &mut World) {
 pub fn add_resources(world: &mut World) {
     world.insert(Menu::Main);
     world.insert(MenuBackground { patch: "TITLE" });
-    world.insert(MenuSelection(None));
+    world.insert(MenuSelection(Some(0)));
+    world.insert(MenuTime(0));
 }
 
 pub fn add_entities(world: &mut World) {
@@ -159,6 +226,108 @@ pub fn add_entities(world: &mut World) {
         ("", MenuAction::None),
         ("MUSIC VOLUME", MenuAction::MusicVolume),
     ];
+
+    // Main
+    world
+        .create_entity()
+        .with(MenuIdent(Menu::Main))
+        .with(MenuOffset(110, 56))
+        .build();
+    for (text, action) in &main_items {
+        world
+            .create_entity()
+            .with(MenuIdent(Menu::Main))
+            .with(MenuItem {
+                text: text,
+                action: action.clone(),
+            })
+            .build();
+    }
+
+    // Episode
+    world
+        .create_entity()
+        .with(MenuIdent(Menu::Episode))
+        .with(MenuOffset(80, 50))
+        .build();
+    for (text, action) in &episode_items {
+        world
+            .create_entity()
+            .with(MenuIdent(Menu::Episode))
+            .with(MenuItem {
+                text: text,
+                action: action.clone(),
+            })
+            .build();
+    }
+
+    // Files
+    world
+        .create_entity()
+        .with(MenuIdent(Menu::Files))
+        .with(MenuOffset(110, 60))
+        .build();
+    for (text, action) in &files_items {
+        world
+            .create_entity()
+            .with(MenuIdent(Menu::Files))
+            .with(MenuItem {
+                text: text,
+                action: action.clone(),
+            })
+            .build();
+    }
+
+    // Skill
+    world
+        .create_entity()
+        .with(MenuIdent(Menu::Skill))
+        .with(MenuOffset(38, 30))
+        .build();
+    for (text, action) in &skill_items {
+        world
+            .create_entity()
+            .with(MenuIdent(Menu::Skill))
+            .with(MenuItem {
+                text: text,
+                action: action.clone(),
+            })
+            .build();
+    }
+
+    // Options
+    world
+        .create_entity()
+        .with(MenuIdent(Menu::Options))
+        .with(MenuOffset(88, 30))
+        .build();
+    for (text, action) in &options_items {
+        world
+            .create_entity()
+            .with(MenuIdent(Menu::Options))
+            .with(MenuItem {
+                text: text,
+                action: action.clone(),
+            })
+            .build();
+    }
+
+    // Options2
+    world
+        .create_entity()
+        .with(MenuIdent(Menu::Options2))
+        .with(MenuOffset(90, 20))
+        .build();
+    for (text, action) in &options2_items {
+        world
+            .create_entity()
+            .with(MenuIdent(Menu::Options2))
+            .with(MenuItem {
+                text: text,
+                action: action.clone(),
+            })
+            .build();
+    }
 
     /*
     world
