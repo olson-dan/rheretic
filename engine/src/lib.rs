@@ -5,7 +5,7 @@ extern crate image;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use failure::Error;
-use image::{Rgb, Rgba, RgbaImage};
+use image::{Rgba, RgbaImage};
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::str;
@@ -109,7 +109,7 @@ impl Patch {
 pub struct Vid<'a> {
     wad: &'a Wad,
     fb: &'a mut RgbaImage,
-    palette: Option<Vec<Rgb<u8>>>,
+    palette: Option<Vec<Rgba<u8>>>,
 }
 
 impl<'a> Vid<'a> {
@@ -129,10 +129,7 @@ impl<'a> Vid<'a> {
             }
             let coord = (y * w + x) as usize;
             let pixel = palette[data[coord] as usize];
-            dest[0] = pixel[0];
-            dest[1] = pixel[1];
-            dest[2] = pixel[2];
-            dest[3] = 255;
+            *dest = pixel;
         }
     }
 
@@ -140,9 +137,7 @@ impl<'a> Vid<'a> {
         let palette = self.palette.as_ref().unwrap();
         for (i, p) in data.iter().enumerate() {
             let pixel = palette[*p as usize];
-            self.fb[(x, y + i as u32)] = Rgba {
-                data: [pixel[0], pixel[1], pixel[2], 255],
-            };
+            self.fb[(x, y + i as u32)] = pixel;
         }
     }
 
@@ -183,7 +178,7 @@ impl<'a> Vid<'a> {
 
     pub fn draw_raw_screen(&mut self, lump: &str) {
         if let Some(lump) = self.wad.cache_lump_name(lump) {
-            self.blit_raw(lump, 320, 200);
+            self.blit_raw(lump, SCREEN_WIDTH, SCREEN_HEIGHT);
         }
     }
 
@@ -197,8 +192,8 @@ impl<'a> Vid<'a> {
         if let Some(lump) = self.wad.cache_lump_name(lump) {
             self.palette = Some(
                 lump.chunks(3)
-                    .map(|x| Rgb {
-                        data: [x[0], x[1], x[2]],
+                    .map(|x| Rgba {
+                        data: [x[0], x[1], x[2], 255],
                     })
                     .collect(),
             )

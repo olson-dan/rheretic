@@ -82,7 +82,7 @@ fn main() -> Result<(), Error> {
             world.maintain();
         }
 
-        if let Some(ref _args) = e.press_args() {
+        if let Some(_button) = e.press_args() {
             //
         }
     }

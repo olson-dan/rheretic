@@ -147,6 +147,10 @@ impl<'a> System<'a> for RenderMenus {
             vid.draw_raw_screen(bg.patch);
         }
 
+        if *menu == Menu::None {
+            return;
+        }
+
         let (x, orig_y) = {
             if let Some((_, offset)) = (&ids, &offsets).join().next() {
                 (offset.0, offset.1)
