@@ -17,6 +17,7 @@ use specs_derive::Component;
 const SECONDS_PER_TICK: f64 = 1.0 / 35.0;
 
 mod menu;
+mod map;
 
 #[derive(Component)]
 struct Sprite {
@@ -37,6 +38,7 @@ fn main() -> Result<(), Error> {
 
     let mut world = World::new();
     menu::add_components(&mut world);
+    map::add_components(&mut world);
     world.register::<Sprite>();
 
     let file = BufReader::new(File::open("heretic.wad")?);

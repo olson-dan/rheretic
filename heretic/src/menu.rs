@@ -44,9 +44,7 @@ enum MenuAction {
     MusicVolume,
 }
 
-struct MenuBackground {
-    patch: &'static str,
-}
+struct MenuBackground(Option<&'static str>);
 
 #[derive(Component)]
 struct MenuItem {
@@ -143,8 +141,8 @@ impl<'a> System<'a> for RenderMenus {
         let mut vid = Vid::new(&wad, &mut fb);
         let menu: &Menu = &menu;
         vid.set_palette("PLAYPAL");
-        if !bg.patch.is_empty() {
-            vid.draw_raw_screen(bg.patch);
+        if let Some(patch) = bg.0 {
+            vid.draw_raw_screen(patch);
         }
 
         if *menu == Menu::None {
@@ -199,7 +197,7 @@ pub fn add_components(world: &mut World) {
 
 pub fn add_resources(world: &mut World) {
     world.insert(Menu::Main);
-    world.insert(MenuBackground { patch: "TITLE" });
+    world.insert(MenuBackground(Some("TITLE")));
     world.insert(MenuSelection(Some(0)));
     world.insert(MenuTime(0));
 }

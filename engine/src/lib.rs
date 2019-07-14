@@ -123,13 +123,19 @@ impl<'a> Vid<'a> {
 
     fn blit_raw(&mut self, data: &[u8], w: u32, h: u32) {
         let palette = self.palette.as_ref().unwrap();
-        for (x, y, dest) in self.fb.enumerate_pixels_mut() {
-            if y >= h || x >= w {
-                continue;
+        if w == SCREEN_WIDTH && h == SCREEN_HEIGHT {
+            for (dest, src) in self.fb.pixels_mut().zip(data.iter()) {
+                *dest = palette[*src as usize];
             }
-            let coord = (y * w + x) as usize;
-            let pixel = palette[data[coord] as usize];
-            *dest = pixel;
+        } else {
+            for (x, y, dest) in self.fb.enumerate_pixels_mut() {
+                if y >= h || x >= w {
+                    continue;
+                }
+                let coord = (y * w + x) as usize;
+                let pixel = palette[data[coord] as usize];
+                *dest = pixel;
+            }
         }
     }
 
@@ -189,7 +195,7 @@ impl<'a> Vid<'a> {
     }
 
     pub fn set_palette(&mut self, lump: &str) {
-        if let Some(lump) = self.wad.cache_lump_name(lump) {
+       if let Some(lump) = self.wad.cache_lump_name(lump) {
             self.palette = Some(
                 lump.chunks(3)
                     .map(|x| Rgba {
